@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Fly &amp; Listen — Vol relaxant côté hublot</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============ ARRIÈRE-PLAN VIDÉO (le paysage vu par le hublot) ============ -->
+  <div class="video-background">
+    <div id="main-player"></div>
+    <div id="ambient-player" class="hidden-player"></div>
+    <div class="video-dim"></div>
+  </div>
+
+  <!-- ============ CALQUE HUBLOT (fuselage + découpe ovale) ============ -->
+  <div class="cabin-overlay" aria-hidden="true">
+    <div class="window-frame">
+      <div class="window-hole"></div>
+      <div class="window-reflection"></div>
+      <div class="window-rivets">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+    <div class="wing"></div>
+    <div class="cabin-vignette"></div>
+  </div>
+
+  <!-- ============ PANNEAU SIGNALISATION CABINE ============ -->
+  <div class="signal-panel" role="group" aria-label="Panneau de signalisation cabine">
+    <button class="signal-light seatbelt" id="seatbelt-toggle" type="button" aria-pressed="false" title="Activer / désactiver le signal (déclenche un Ding)">
+      <svg viewBox="0 0 64 40" class="signal-icon">
+        <path d="M8 20c6-10 14-14 24-14s18 4 24 14c-6 10-14 14-24 14S14 30 8 20z" fill="none" stroke="currentColor" stroke-width="3"/>
+        <circle cx="32" cy="20" r="4.5" fill="currentColor"/>
+      </svg>
+      <span class="signal-label">Attachez votre ceinture</span>
+    </button>
+    <div class="signal-divider"></div>
+    <div class="signal-light no-smoking is-on" title="Interdiction de fumer">
+      <svg viewBox="0 0 64 40" class="signal-icon">
+        <rect x="18" y="17" width="22" height="6" rx="1.5" fill="currentColor"/>
+        <rect x="40" y="17" width="6" height="6" fill="currentColor" opacity="0.6"/>
+        <line x1="10" y1="10" x2="54" y2="30" stroke="currentColor" stroke-width="3"/>
+        <circle cx="32" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3"/>
+      </svg>
+      <span class="signal-label">Interdiction de fumer</span>
+    </div>
+  </div>
+
+  <!-- ============ BOUTON D'OUVERTURE DE LA BARRE LATÉRALE ============ -->
+  <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Ouvrir / fermer les commandes" aria-expanded="true">
+    <span class="chevron">›</span>
+  </button>
+
+  <!-- ============ BARRE LATÉRALE DE CONTRÔLE ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-inner">
+      <header class="sidebar-header">
+        <span class="logo-plane">✈</span>
+        <div>
+          <h1>Fly &amp; Listen</h1>
+          <p class="tagline">Détendez-vous, on décolle.</p>
+        </div>
+      </header>
+
+      <section class="control-block">
+        <label class="control-label" for="destination-select">Destination</label>
+        <select id="destination-select" class="control-select"></select>
+      </section>
+
+      <section class="control-block">
+        <label class="control-label" for="radio-select">Station radio locale</label>
+        <select id="radio-select" class="control-select"></select>
+        <p class="radio-status" id="radio-status">—</p>
+      </section>
+
+      <section class="control-block">
+        <label class="control-label" for="radio-volume">
+          Volume radio <span class="value-badge" id="radio-volume-value">60%</span>
+        </label>
+        <input type="range" id="radio-volume" class="control-slider" min="0" max="100" value="60" />
+      </section>
+
+      <section class="control-block">
+        <label class="control-label" for="ambient-volume">
+          Bruit réacteur <span class="value-badge" id="ambient-volume-value">25%</span>
+        </label>
+        <input type="range" id="ambient-volume" class="control-slider" min="0" max="100" value="25" />
+      </section>
+
+      <section class="control-block">
+        <label class="control-label">Vitesse de vol</label>
+        <div class="speed-buttons" id="speed-buttons">
+          <button type="button" data-speed="0.5">0.5x</button>
+          <button type="button" data-speed="1" class="active">1x</button>
+          <button type="button" data-speed="1.25">1.25x</button>
+          <button type="button" data-speed="1.5">1.5x</button>
+        </div>
+      </section>
+
+      <footer class="sidebar-footer">
+        <p>Casque conseillé 🎧 — Bon vol.</p>
+      </footer>
+    </div>
+  </aside>
+
+  <!-- Lecteur radio en direct -->
+  <audio id="radio-audio" preload="none"></audio>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="script.js"></script>
+</body>
+</html>
