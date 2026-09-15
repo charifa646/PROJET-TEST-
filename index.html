@@ -10,8 +10,8 @@
 
   <!-- ============ ARRIÈRE-PLAN VIDÉO (le paysage vu par le hublot) ============ -->
   <div class="video-background">
-    <div id="main-player"></div>
-    <div id="ambient-player" class="hidden-player"></div>
+    <iframe id="main-player" title="Vue depuis le hublot" allow="autoplay; encrypted-media" frameborder="0"></iframe>
+    <iframe id="ambient-player" class="hidden-player" title="Bruit de cabine" allow="autoplay; encrypted-media" frameborder="0"></iframe>
     <div class="video-dim"></div>
   </div>
 
@@ -110,7 +110,6 @@
   <!-- Lecteur radio en direct -->
   <audio id="radio-audio" preload="none"></audio>
 
-  <script src="https://www.youtube.com/iframe_api"></script>
   <script src="script.js"></script>
 </body>
 </html>

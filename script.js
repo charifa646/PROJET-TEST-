@@ -1,6 +1,11 @@
 /* =========================================================
    Fly & Listen — script.js
    Logique de l'application : lecteurs YouTube, radio, UI
+
+   Les vidéos YouTube sont pilotées via l'API postMessage native
+   du lecteur intégré (enablejsapi=1) : pas de script externe à
+   charger, ce qui rend l'app portable (hébergement statique,
+   aperçu embarqué, etc.).
 ========================================================= */
 
 // -------------------- BASE DE DONNÉES DES VOLS --------------------
@@ -34,13 +39,14 @@ const flights = [
 ];
 
 // -------------------- ÉTAT GLOBAL --------------------
-let mainPlayer = null;
-let ambientPlayer = null;
-let playersReady = { main: false, ambient: false };
 let currentFlightIndex = 0;
+let currentPlaybackRate = 1;
 let seatbeltOn = false;
 let audioCtx = null;
+let audioUnlocked = false;
 
+const mainPlayer = document.getElementById("main-player");
+const ambientPlayer = document.getElementById("ambient-player");
 const radioAudio = document.getElementById("radio-audio");
 const destinationSelect = document.getElementById("destination-select");
 const radioSelect = document.getElementById("radio-select");
@@ -54,69 +60,47 @@ const sidebar = document.getElementById("sidebar");
 const sidebarToggle = document.getElementById("sidebar-toggle");
 const seatbeltToggle = document.getElementById("seatbelt-toggle");
 
-// -------------------- INITIALISATION YOUTUBE IFRAME API --------------------
-// Appelée automatiquement par l'API YouTube une fois chargée (voir index.html)
-function onYouTubeIframeAPIReady() {
-  const currentFlight = flights[currentFlightIndex];
+// -------------------- LECTEURS YOUTUBE (API postMessage) --------------------
+function embedUrl(videoId) {
+  const origin = encodeURIComponent(window.location.origin);
+  const params = [
+    "autoplay=1", "controls=0", "disablekb=1", "fs=0", "iv_load_policy=3",
+    "loop=1", `playlist=${videoId}`, "modestbranding=1", "rel=0",
+    "showinfo=0", "playsinline=1", "enablejsapi=1", `origin=${origin}`
+  ].join("&");
+  return `https://www.youtube.com/embed/${videoId}?${params}`;
+}
 
-  mainPlayer = new YT.Player("main-player", {
-    videoId: currentFlight.videoUrl,
-    playerVars: {
-      autoplay: 1,
-      controls: 0,
-      disablekb: 1,
-      fs: 0,
-      iv_load_policy: 3,
-      loop: 1,
-      modestbranding: 1,
-      playlist: currentFlight.videoUrl,
-      rel: 0,
-      showinfo: 0,
-      mute: 1
-    },
-    events: {
-      onReady: (e) => {
-        playersReady.main = true;
-        e.target.mute(); // le son natif de la vidéo est toujours coupé
-        e.target.playVideo();
-      },
-      onStateChange: (e) => {
-        if (e.data === YT.PlayerState.ENDED) {
-          e.target.seekTo(0);
-          e.target.playVideo();
-        }
-      }
-    }
-  });
+function sendCommand(iframe, func, args = []) {
+  if (!iframe || !iframe.contentWindow) return;
+  try {
+    iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+  } catch (err) {
+    console.warn("Commande lecteur impossible :", err);
+  }
+}
 
-  ambientPlayer = new YT.Player("ambient-player", {
-    videoId: currentFlight.ambientSound,
-    playerVars: {
-      autoplay: 1,
-      controls: 0,
-      disablekb: 1,
-      fs: 0,
-      iv_load_policy: 3,
-      loop: 1,
-      modestbranding: 1,
-      playlist: currentFlight.ambientSound,
-      rel: 0,
-      showinfo: 0
-    },
-    events: {
-      onReady: (e) => {
-        playersReady.ambient = true;
-        e.target.setVolume(Number(ambientVolumeInput.value));
-        e.target.playVideo();
-      },
-      onStateChange: (e) => {
-        if (e.data === YT.PlayerState.ENDED) {
-          e.target.seekTo(0);
-          e.target.playVideo();
-        }
-      }
-    }
-  });
+function loadMainVideo(videoId) {
+  mainPlayer.src = embedUrl(videoId);
+  mainPlayer.onload = () => {
+    // Le lecteur met un court instant à accepter les commandes après chargement
+    setTimeout(() => {
+      sendCommand(mainPlayer, "mute");
+      sendCommand(mainPlayer, "setPlaybackRate", [currentPlaybackRate]);
+      sendCommand(mainPlayer, "playVideo");
+    }, 800);
+  };
+}
+
+function loadAmbientVideo(videoId) {
+  ambientPlayer.src = embedUrl(videoId);
+  ambientPlayer.onload = () => {
+    setTimeout(() => {
+      sendCommand(ambientPlayer, "setVolume", [Number(ambientVolumeInput.value)]);
+      sendCommand(ambientPlayer, audioUnlocked ? "unMute" : "mute");
+      sendCommand(ambientPlayer, "playVideo");
+    }, 800);
+  };
 }
 
 // -------------------- SIDEBAR : DESTINATIONS & RADIOS --------------------
@@ -155,7 +139,7 @@ function playRadio(radio) {
   if (playPromise && typeof playPromise.then === "function") {
     playPromise
       .then(() => { radioStatus.textContent = `▶ En direct : ${radio.name}`; })
-      .catch(() => { radioStatus.textContent = `Flux indisponible pour ${radio.name}`; });
+      .catch(() => { radioStatus.textContent = `En attente d'une interaction pour lancer ${radio.name}…`; });
   }
 }
 
@@ -168,15 +152,8 @@ function changeDestination(flightIndex) {
   currentFlightIndex = flightIndex;
   const flight = flights[flightIndex];
 
-  if (playersReady.main && mainPlayer && mainPlayer.loadVideoById) {
-    mainPlayer.loadVideoById(flight.videoUrl);
-    mainPlayer.mute();
-  }
-  if (playersReady.ambient && ambientPlayer && ambientPlayer.loadVideoById) {
-    ambientPlayer.loadVideoById(flight.ambientSound);
-    ambientPlayer.setVolume(Number(ambientVolumeInput.value));
-  }
-
+  loadMainVideo(flight.videoUrl);
+  loadAmbientVideo(flight.ambientSound);
   populateRadios(flightIndex);
 }
 
@@ -200,28 +177,42 @@ radioVolumeInput.addEventListener("input", (e) => {
 ambientVolumeInput.addEventListener("input", (e) => {
   const value = Number(e.target.value);
   ambientVolumeValue.textContent = `${value}%`;
-  if (playersReady.ambient && ambientPlayer && ambientPlayer.setVolume) {
-    ambientPlayer.setVolume(value);
-  }
+  sendCommand(ambientPlayer, "setVolume", [value]);
 });
 
 speedButtons.addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-speed]");
   if (!btn) return;
-  const rate = Number(btn.dataset.speed);
+  currentPlaybackRate = Number(btn.dataset.speed);
 
   [...speedButtons.children].forEach((b) => b.classList.remove("active"));
   btn.classList.add("active");
 
-  if (playersReady.main && mainPlayer && mainPlayer.setPlaybackRate) {
-    mainPlayer.setPlaybackRate(rate);
-  }
+  sendCommand(mainPlayer, "setPlaybackRate", [currentPlaybackRate]);
 });
 
 sidebarToggle.addEventListener("click", () => {
   const isClosed = sidebar.classList.toggle("closed");
   sidebarToggle.setAttribute("aria-expanded", String(!isClosed));
 });
+
+// -------------------- DÉBLOCAGE AUDIO (politique autoplay des navigateurs) --------------------
+// Les navigateurs bloquent l'autoplay avec son tant qu'il n'y a pas eu
+// d'interaction utilisateur : on démarre donc la radio et le bruit
+// ambiant dès le premier clic/touche sur la page.
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  sendCommand(ambientPlayer, "unMute");
+  sendCommand(ambientPlayer, "setVolume", [Number(ambientVolumeInput.value)]);
+  sendCommand(ambientPlayer, "playVideo");
+  if (radioAudio.paused) {
+    radioAudio.play().catch(() => {});
+  }
+}
+document.addEventListener("click", unlockAudio, { once: true });
+document.addEventListener("keydown", unlockAudio, { once: true });
+document.addEventListener("touchstart", unlockAudio, { once: true });
 
 // -------------------- PANNEAU CEINTURE : DING SONORE --------------------
 function playDing() {
@@ -260,6 +251,6 @@ seatbeltToggle.addEventListener("click", () => {
 
 // -------------------- INITIALISATION GÉNÉRALE --------------------
 populateDestinations();
-populateRadios(currentFlightIndex);
+changeDestination(currentFlightIndex);
 radioVolumeValue.textContent = `${radioVolumeInput.value}%`;
 ambientVolumeValue.textContent = `${ambientVolumeInput.value}%`;
